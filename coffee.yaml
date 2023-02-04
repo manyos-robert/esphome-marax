@@ -1,0 +1,122 @@
+substitutions:
+  esp_name: coffee
+  esp_hostname: esp-coffee
+
+<<: !include ../.base.yaml
+
+
+esphome:
+  name: ${esp_hostname}
+  platform: ESP32
+  board: esp32dev
+  
+time:
+  - platform: homeassistant
+    id: esptime
+    
+font:
+  - file: '../fonts/arial.ttf'
+    id: font1
+    size: 33
+    
+  - file: '../fonts/arial.ttf'
+    id: font2
+    size: 52
+
+# Example configuration entry
+i2c:
+  sda: GPIO5
+  scl: GPIO4
+
+display:
+  - platform: ssd1306_i2c
+    model: "SSD1306 128x64"
+    id: "my_display"
+    address: 0x3C
+    pages:
+      - id: page1
+        lambda: |-
+          it.printf(0, 15, id(font1), "%.f/%.f", id(heat_actual).state, id(steam_actual).state);
+      - id: page2
+        lambda: |-
+          it.strftime(0, 51, id(font2), TextAlign::BASELINE_LEFT, "%H:%M", id(esptime).now());
+
+interval:
+  - interval: 5s
+    then:
+      - display.page.show_next: my_display
+      - component.update: my_display
+
+sensor:
+  - platform: template
+    name: "Steam Actual"
+    id: "steam_actual"
+  - platform: template
+    name: "Steam Target"
+    id: "steam_target"
+  - platform: template
+    name: "Heatexchanger Actual"
+    id: "heat_actual"
+  # Uptime sensor.
+  - platform: uptime
+    name: ${esp_name} Uptime
+  # WiFi Signal sensor.
+  - platform: wifi_signal
+    name: ${esp_name} WiFi Signal
+    update_interval: 60s
+
+binary_sensor:
+  - platform: template
+    name: "Heating"
+    id: "heating"
+        
+# Text sensors with general information.
+text_sensor:
+  # Expose ESPHome version as sensor.
+  - platform: version
+    name: "${esp_name} ESPHome Version"
+  # Expose WiFi information as sensors.
+  - platform: wifi_info
+    ip_address:
+      name: ${esp_name}
+    ssid:
+      name: ${esp_name}
+    bssid:
+      name: ${esp_name}
+  - platform: template
+    name: "Operation Mode"
+    id: "opsType"
+  - platform: template
+    name: "Firmware Version"
+    id: "coffeeVersion"
+
+uart:
+  baud_rate: 9600
+  tx_pin: GPIO13
+  rx_pin: GPIO15
+  id: UART2
+  debug:
+    direction: BOTH
+    dummy_receiver: true
+    after:
+      delimiter: "\r\n"
+    sequence:
+      - lambda: |-
+          UARTDebug::log_string(direction, bytes);
+          char senType[1];
+          char senVersion[4];
+          int senSteamActual=0;
+          int senSteamTarget=0;
+          int senHeatActual=0;
+          int senHeating=0;
+          int senCounter=0;
+          //C123b,095,112,063,1095,1\r\n
+          std::string str(bytes.begin(), bytes.end());
+          if (sscanf(str.c_str(), "%1c%4c,%d,%d,%d,%d,%d", senType, senVersion, &senSteamActual, &senSteamTarget, &senHeatActual, &senCounter, &senHeating) == 7 ) {
+            id(steam_actual).publish_state(senSteamActual); 
+            id(steam_target).publish_state(senSteamTarget);
+            id(heat_actual).publish_state(senHeatActual);
+            id(heating).publish_state(senHeating);
+            //id(opsType).publish_state(senType);
+            //id(coffeeVersion).publish_state(senVersion);
+          }
