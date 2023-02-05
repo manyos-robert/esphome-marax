@@ -129,5 +129,5 @@ script:
           id(steam_target).publish_state(NAN);
           id(heat_actual).publish_state(NAN);
           id(heating).publish_state(NAN);
-          id(opsType).publish_state(NAN);
-          id(coffeeVersion).publish_state(NAN);
+          //id(opsType).publish_state(NAN);
+          //id(coffeeVersion).publish_state(NAN);
