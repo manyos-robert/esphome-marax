@@ -41,12 +41,6 @@ display:
         lambda: |-
           it.strftime(0, 51, id(font2), TextAlign::BASELINE_LEFT, "%H:%M", id(esptime).now());
 
-interval:
-  - interval: 5s
-    then:
-      - display.page.show_next: my_display
-      - component.update: my_display
-
 sensor:
   - platform: template
     name: "Steam Actual"
@@ -119,4 +113,17 @@ uart:
             id(heating).publish_state(senHeating);
             //id(opsType).publish_state(senType);
             //id(coffeeVersion).publish_state(senVersion);
+            id(show_coffee_values).execute();
           }
+
+script:
+  - id: show_coffee_values
+    mode: restart
+    then:
+      - display.page.show: page1
+      - component.update: my_display
+      - delay: 10 s
+      - display.page.show: page2
+      - component.update: my_display
+
+ 
