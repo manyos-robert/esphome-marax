@@ -7,4 +7,4 @@ Based on this great Reddit article: https://www.reddit.com/r/espresso/comments/h
 
 Case: https://www.thingiverse.com/thing:3579080
 
-
+![ESP32 in Clock mode](img/clock.jpg)
