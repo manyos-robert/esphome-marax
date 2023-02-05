@@ -4,7 +4,6 @@ substitutions:
 
 <<: !include ../.base.yaml
 
-
 esphome:
   name: ${esp_hostname}
   platform: ESP32
@@ -34,18 +33,12 @@ display:
     id: "my_display"
     address: 0x3C
     pages:
-      - id: page1
+      - id: pageCoffee
         lambda: |-
           it.printf(0, 15, id(font1), "%.f/%.f", id(heat_actual).state, id(steam_actual).state);
-      - id: page2
+      - id: pageClock
         lambda: |-
           it.strftime(0, 51, id(font2), TextAlign::BASELINE_LEFT, "%H:%M", id(esptime).now());
-
-interval:
-  - interval: 5s
-    then:
-      - display.page.show_next: my_display
-      - component.update: my_display
 
 sensor:
   - platform: template
@@ -86,6 +79,11 @@ text_sensor:
   - platform: template
     name: "Operation Mode"
     id: "opsType"
+    filters:
+      - map:
+        - C -> Coffee priority
+        - S -> Steam priority
+        - X -> Offline
   - platform: template
     name: "Firmware Version"
     id: "coffeeVersion"
@@ -119,4 +117,22 @@ uart:
             id(heating).publish_state(senHeating);
             //id(opsType).publish_state(senType);
             //id(coffeeVersion).publish_state(senVersion);
+            id(show_coffee_values).execute();
           }
+
+script:
+  - id: show_coffee_values
+    mode: restart
+    then:
+      - display.page.show: pageCoffee
+      - component.update: my_display
+      - delay: 5s
+      - display.page.show: pageClock
+      - component.update: my_display
+      - lambda: |-
+          id(steam_actual).publish_state(NAN); 
+          id(steam_target).publish_state(NAN);
+          id(heat_actual).publish_state(NAN);
+          id(heating).publish_state(0);
+          id(opsType).publish_state("X");
+          //id(coffeeVersion).publish_state(NAN);
