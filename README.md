@@ -1,4 +1,4 @@
-#Home Assistant Integration for Lelit MaraX with ESPHome
+# Home Assistant Integration for Lelit MaraX with ESPHome
 
 I build an integration for my Lelit MaraX Espresso Machine for Home Assistant.
 
