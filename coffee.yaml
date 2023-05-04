@@ -108,6 +108,11 @@ uart:
           int senHeatActual=0;
           int senHeating=0;
           int senCounter=0;
+          bool debugMode = false;
+          
+          char stringBuffer[10];
+          std::string sensorValueText;
+          
           //C123b,095,112,063,1095,1\r\n
           std::string str(bytes.begin(), bytes.end());
           if (sscanf(str.c_str(), "%1c%4c,%d,%d,%d,%d,%d", senType, senVersion, &senSteamActual, &senSteamTarget, &senHeatActual, &senCounter, &senHeating) == 7 ) {
@@ -117,6 +122,22 @@ uart:
             id(heating).publish_state(senHeating);
             //id(opsType).publish_state(senType);
             //id(coffeeVersion).publish_state(senVersion);
+            //opstype
+            
+            snprintf(stringBuffer, sizeof(stringBuffer), "%.1s", senType);
+            sensorValueText = stringBuffer;
+            if(debugMode) {
+              ESP_LOGD("MaraX", "Ops Mode: %s \n", sensorValueText.c_str());
+            }
+            id(opsType).publish_state(sensorValueText.c_str());
+            
+            snprintf(stringBuffer, sizeof(stringBuffer), "%.4s", senVersion);
+            sensorValueText = stringBuffer;
+            if(debugMode) {
+              ESP_LOGD("MaraX", "Firmware Version: %s \n", sensorValueText.c_str());
+            }
+            id(coffeeVersion).publish_state(sensorValueText.c_str());
+            
             id(show_coffee_values).execute();
           }
 
