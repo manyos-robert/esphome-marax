@@ -44,12 +44,18 @@ sensor:
   - platform: template
     name: "Steam Actual"
     id: "steam_actual"
+    state_class: measurement
+    unit_of_measurement: "°C"
   - platform: template
     name: "Steam Target"
     id: "steam_target"
+    state_class: measurement
+    unit_of_measurement: "°C"
   - platform: template
     name: "Heatexchanger Actual"
     id: "heat_actual"
+    state_class: measurement
+    unit_of_measurement: "°C"
   # Uptime sensor.
   - platform: uptime
     name: ${esp_name} Uptime
