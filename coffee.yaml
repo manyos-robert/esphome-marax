@@ -6,8 +6,8 @@ substitutions:
 
 esphome:
   name: ${esp_hostname}
-  platform: ESP32
-  board: esp32dev
+  platform: ESP8266
+  board: d1_mini
   
 time:
   - platform: homeassistant
@@ -22,40 +22,28 @@ font:
     id: font2
     size: 52
 
-# Example configuration entry
-i2c:
-  sda: GPIO5
-  scl: GPIO4
-
-display:
-  - platform: ssd1306_i2c
-    model: "SSD1306 128x64"
-    id: "my_display"
-    address: 0x3C
-    pages:
-      - id: pageCoffee
-        lambda: |-
-          it.printf(0, 15, id(font1), "%.f/%.f", id(heat_actual).state, id(steam_actual).state);
-      - id: pageClock
-        lambda: |-
-          it.strftime(0, 51, id(font2), TextAlign::BASELINE_LEFT, "%H:%M", id(esptime).now());
-
 sensor:
   - platform: template
     name: "Steam Actual"
     id: "steam_actual"
     state_class: measurement
     unit_of_measurement: "°C"
+    filters:
+      - timeout: 10s  # sent value will be NaN
   - platform: template
     name: "Steam Target"
     id: "steam_target"
     state_class: measurement
     unit_of_measurement: "°C"
+    filters:
+      - timeout: 10s  # sent value will be NaN
   - platform: template
     name: "Heatexchanger Actual"
     id: "heat_actual"
     state_class: measurement
     unit_of_measurement: "°C"
+    filters:
+      - timeout: 10s  # sent value will be NaN
   # Uptime sensor.
   - platform: uptime
     name: ${esp_name} Uptime
@@ -96,8 +84,8 @@ text_sensor:
 
 uart:
   baud_rate: 9600
-  tx_pin: GPIO13
-  rx_pin: GPIO15
+  tx_pin: D8
+  rx_pin: D7
   id: UART2
   debug:
     direction: BOTH
@@ -144,22 +132,5 @@ uart:
             }
             id(coffeeVersion).publish_state(sensorValueText.c_str());
             
-            id(show_coffee_values).execute();
+            //id(show_coffee_values).execute();
           }
-
-script:
-  - id: show_coffee_values
-    mode: restart
-    then:
-      - display.page.show: pageCoffee
-      - component.update: my_display
-      - delay: 5s
-      - display.page.show: pageClock
-      - component.update: my_display
-      - lambda: |-
-          id(steam_actual).publish_state(NAN); 
-          id(steam_target).publish_state(NAN);
-          id(heat_actual).publish_state(NAN);
-          id(heating).publish_state(0);
-          id(opsType).publish_state("X");
-          //id(coffeeVersion).publish_state(NAN);
