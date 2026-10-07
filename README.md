@@ -44,6 +44,13 @@ The pump pulses with 50 Hz, the resulting chatter is filtered in ESPHome.
 Pump runs shorter than `shot_min_s` (default 10 s) are treated as flushing or boiler refill:
 `Shot Zeit` falls back to 0 and `Letzter Shot` is not updated.
 
+## Ready for coffee
+
+`Kaffee bereit` turns on once the heat exchanger exceeds `ready_on_c` (88 °C) and only turns off again
+when it falls below `ready_off_c` (85 °C), the machine is switched off or `Kein Wasser (vermutet)` is on.
+The hysteresis keeps it stable
+when the temperature moves during a shot. From a cold start it takes about 15 minutes.
+
 ## Empty water tank
 
 The MaraX blocks the heater when the water tank is empty or removed, and the heating flag in the serial

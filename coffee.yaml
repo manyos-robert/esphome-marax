@@ -12,6 +12,9 @@ substitutions:
   # unter Soll liegt und die Heizung trotzdem länger als nowater_delay_s aus bleibt
   # (gemessen: normal heizt sie nach spätestens ~22 s nach)
   nowater_delay_s: "60"
+  # Kaffee bereit: Wärmetauscher über ready_on_c, erst unter ready_off_c wieder nicht bereit
+  ready_on_c: "88"
+  ready_off_c: "85"
 
 <<: !include ../.base.yaml
 
@@ -51,6 +54,13 @@ sensor:
     unit_of_measurement: "°C"
     filters:
       - timeout: 10s  # sent value will be NaN
+    on_value:
+      - lambda: |-
+          if (isnan(x) || x < ${ready_off_c} || id(no_water).state) {
+            id(coffee_ready).publish_state(false);
+          } else if (x > ${ready_on_c}) {
+            id(coffee_ready).publish_state(true);
+          }
   # Läuft während des Bezugs sekündlich hoch, danach Endzeit (bzw. 0 bei kurzem Pumpenlauf)
   - platform: template
     name: "Shot Zeit"
@@ -78,6 +88,11 @@ binary_sensor:
   - platform: template
     name: "Heating"
     id: "heating"
+  - platform: template
+    name: "Kaffee bereit"
+    id: coffee_ready
+    icon: mdi:coffee
+    publish_initial_state: true
   - platform: template
     name: "Kein Wasser (vermutet)"
     id: no_water
