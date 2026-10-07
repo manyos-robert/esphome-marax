@@ -1,26 +1,30 @@
 substitutions:
   esp_name: coffee
   esp_hostname: esp-coffee
+  # UART zur MaraX (6-pol. Stecker an der Unterseite)
+  pin_uart_tx: D8
+  pin_uart_rx: D7
+  # Reed-Kontakt an der Vibrationspumpe (gegen GND, interner Pull-up)
+  pin_pump_reed: D5
+  # Kürzere Pumpenläufe gelten als Spülen / Kessel-Nachfüllen, nicht als Shot
+  shot_min_s: "10"
+  # Kein Wasser im Tank => MaraX heizt nicht mehr. Erkannt, wenn die Dampf-Temperatur
+  # mind. nowater_below_c unter Soll liegt und über nowater_window_s nicht gestiegen ist.
+  nowater_below_c: "3"
+  nowater_window_s: "180"
 
 <<: !include ../.base.yaml
 
 esphome:
   name: ${esp_hostname}
-  platform: ESP8266
+
+esp8266:
   board: d1_mini
-  
-time:
-  - platform: homeassistant
-    id: esptime
-    
-font:
-  - file: '../fonts/arial.ttf'
-    id: font1
-    size: 33
-    
-  - file: '../fonts/arial.ttf'
-    id: font2
-    size: 52
+
+globals:
+  - id: shot_start_ms
+    type: uint32_t
+    initial_value: '0'
 
 sensor:
   - platform: template
@@ -44,6 +48,21 @@ sensor:
     unit_of_measurement: "°C"
     filters:
       - timeout: 10s  # sent value will be NaN
+  # Läuft während des Bezugs sekündlich hoch, danach Endzeit (bzw. 0 bei kurzem Pumpenlauf)
+  - platform: template
+    name: "Shot Zeit"
+    id: shot_time
+    unit_of_measurement: "s"
+    accuracy_decimals: 1
+    icon: mdi:timer-outline
+  # Nur echte Shots (>= shot_min_s), für Historie/Statistik
+  - platform: template
+    name: "Letzter Shot"
+    id: last_shot
+    state_class: measurement
+    unit_of_measurement: "s"
+    accuracy_decimals: 1
+    icon: mdi:coffee
   # Uptime sensor.
   - platform: uptime
     name: ${esp_name} Uptime
@@ -56,7 +75,79 @@ binary_sensor:
   - platform: template
     name: "Heating"
     id: "heating"
-        
+  - platform: template
+    name: "Kein Wasser (vermutet)"
+    id: no_water
+    device_class: problem
+  - platform: gpio
+    name: "Pumpe"
+    id: pump
+    pin:
+      number: ${pin_pump_reed}
+      mode:
+        input: true
+        pullup: true
+      inverted: true
+    filters:
+      # Die Vibrationspumpe pulst mit 50 Hz, der Reed-Kontakt flattert mit: Lücken überbrücken
+      - delayed_off: 500ms
+      # Einzelne Stöße (z. B. Klopfen ans Gehäuse) ignorieren
+      - delayed_on: 100ms
+    on_press:
+      - lambda: 'id(shot_start_ms) = millis() - 100;'  # delayed_on ausgleichen
+      - script.execute: shot_ticker
+    on_release:
+      - script.stop: shot_ticker
+      - lambda: |-
+          // delayed_off ausgleichen
+          float secs = (millis() - id(shot_start_ms) - 500) / 1000.0f;
+          if (secs >= ${shot_min_s}) {
+            id(shot_time).publish_state(secs);
+            id(last_shot).publish_state(secs);
+          } else {
+            id(shot_time).publish_state(0);
+          }
+
+script:
+  - id: shot_ticker
+    mode: restart
+    then:
+      - while:
+          condition:
+            binary_sensor.is_on: pump
+          then:
+            - sensor.template.publish:
+                id: shot_time
+                state: !lambda 'return floorf((millis() - id(shot_start_ms)) / 1000.0f);'
+            - delay: 1s
+
+interval:
+  - interval: 10s
+    then:
+      - lambda: |-
+          // Ohne Wasser im Tank heizt die MaraX nicht mehr: Dampf-Temperatur liegt
+          // deutlich unter Soll und steigt über das ganze Fenster nicht an.
+          static std::vector<float> hist;
+          const size_t samples = ${nowater_window_s} / 10 + 1;
+          float actual = id(steam_actual).state;
+          float target = id(steam_target).state;
+          if (isnan(actual) || isnan(target)) {  // Maschine aus
+            hist.clear();
+            id(no_water).publish_state(false);
+            return;
+          }
+          hist.push_back(actual);
+          if (hist.size() > samples) hist.erase(hist.begin());
+          if (hist.size() < samples) return;
+          float rise = actual - hist.front();
+          bool alarm = id(no_water).state;
+          if (!alarm && actual <= target - ${nowater_below_c} && rise < 0.5f) {
+            alarm = true;
+          } else if (alarm && rise > 2.0f) {  // heizt wieder => aufgefüllt
+            alarm = false;
+          }
+          id(no_water).publish_state(alarm);
+
 # Text sensors with general information.
 text_sensor:
   # Expose ESPHome version as sensor.
@@ -65,11 +156,11 @@ text_sensor:
   # Expose WiFi information as sensors.
   - platform: wifi_info
     ip_address:
-      name: ${esp_name}
+      name: "${esp_name} IP Address"
     ssid:
-      name: ${esp_name}
+      name: "${esp_name} SSID"
     bssid:
-      name: ${esp_name}
+      name: "${esp_name} BSSID"
   - platform: template
     name: "Operation Mode"
     id: "opsType"
@@ -84,8 +175,8 @@ text_sensor:
 
 uart:
   baud_rate: 9600
-  tx_pin: D8
-  rx_pin: D7
+  tx_pin: ${pin_uart_tx}
+  rx_pin: ${pin_uart_rx}
   id: UART2
   debug:
     direction: BOTH
@@ -131,6 +222,4 @@ uart:
               ESP_LOGD("MaraX", "Firmware Version: %s \n", sensorValueText.c_str());
             }
             id(coffeeVersion).publish_state(sensorValueText.c_str());
-            
-            //id(show_coffee_values).execute();
           }
