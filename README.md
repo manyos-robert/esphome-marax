@@ -46,10 +46,13 @@ Pump runs shorter than `shot_min_s` (default 10 s) are treated as flushing or bo
 
 ## Empty water tank
 
-The MaraX stops heating when the water tank is empty. `Kein Wasser (vermutet)` turns on when the machine
-is on, the steam temperature is at least `nowater_below_c` (3 °C) below target and has not risen within
-`nowater_window_s` (180 s). It turns off again as soon as the machine heats up. A removed tank or a
-tripped safety thermostat looks the same, hence "vermutet".
+The MaraX blocks the heater when the water tank is empty or removed, and the heating flag in the serial
+data stays 0. `Kein Wasser (vermutet)` turns on when the steam temperature is below target and the heater
+nevertheless stays off for longer than `nowater_delay_s` (60 s). In normal operation the heater kicks in
+after at most ~22 s (measured); with the tank removed it stayed off for 13 minutes while the boiler cooled
+by about 1 °C per minute. The sensor turns off as soon as the heater runs again (the fast heating timer
+restarts at 1200 when water is back). Only checked in steam priority mode (V), coffee priority is not
+measured.
 
 Example notification in Home Assistant:
 

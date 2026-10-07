@@ -8,10 +8,10 @@ substitutions:
   pin_pump_reed: D5
   # Kürzere Pumpenläufe gelten als Spülen / Kessel-Nachfüllen, nicht als Shot
   shot_min_s: "10"
-  # Kein Wasser im Tank => MaraX heizt nicht mehr. Erkannt, wenn die Dampf-Temperatur
-  # mind. nowater_below_c unter Soll liegt und über nowater_window_s nicht gestiegen ist.
-  nowater_below_c: "3"
-  nowater_window_s: "180"
+  # Kein Wasser im Tank => MaraX sperrt die Heizung. Erkannt, wenn die Dampf-Temperatur
+  # unter Soll liegt und die Heizung trotzdem länger als nowater_delay_s aus bleibt
+  # (gemessen: normal heizt sie nach spätestens ~22 s nach)
+  nowater_delay_s: "60"
 
 <<: !include ../.base.yaml
 
@@ -25,6 +25,9 @@ globals:
   - id: shot_start_ms
     type: uint32_t
     initial_value: '0'
+  - id: marax_mode  # C = Kaffee-, V = Dampf-Vorrang
+    type: char
+    initial_value: "'X'"
 
 sensor:
   - platform: template
@@ -122,31 +125,23 @@ script:
             - delay: 1s
 
 interval:
-  - interval: 10s
+  - interval: 5s
     then:
       - lambda: |-
-          // Ohne Wasser im Tank heizt die MaraX nicht mehr: Dampf-Temperatur liegt
-          // deutlich unter Soll und steigt über das ganze Fenster nicht an.
-          static std::vector<float> hist;
-          const size_t samples = ${nowater_window_s} / 10 + 1;
-          float actual = id(steam_actual).state;
+          // Ohne Wasser im Tank sperrt die MaraX die Heizung: Dampf unter Soll, Heizung bleibt aus.
+          // Nur im Dampf-Modus geprüft (Kaffee-Modus regelt anders und ist nicht vermessen).
+          static uint32_t unheated_since = 0;
+          float actual = id(steam_actual).state;  // NaN = Maschine aus
           float target = id(steam_target).state;
-          if (isnan(actual) || isnan(target)) {  // Maschine aus
-            hist.clear();
-            id(no_water).publish_state(false);
-            return;
+          bool unheated = id(marax_mode) != 'C' && !isnan(actual) && !isnan(target)
+                          && actual <= target - 1 && !id(heating).state;
+          if (!unheated) {
+            unheated_since = 0;
+          } else if (unheated_since == 0) {
+            unheated_since = millis();
           }
-          hist.push_back(actual);
-          if (hist.size() > samples) hist.erase(hist.begin());
-          if (hist.size() < samples) return;
-          float rise = actual - hist.front();
-          bool alarm = id(no_water).state;
-          if (!alarm && actual <= target - ${nowater_below_c} && rise < 0.5f) {
-            alarm = true;
-          } else if (alarm && rise > 2.0f) {  // heizt wieder => aufgefüllt
-            alarm = false;
-          }
-          id(no_water).publish_state(alarm);
+          id(no_water).publish_state(unheated_since != 0 &&
+                                     millis() - unheated_since >= ${nowater_delay_s} * 1000UL);
 
 # Text sensors with general information.
 text_sensor:
@@ -210,6 +205,7 @@ uart:
             id(steam_target).publish_state(senSteamTarget);
             id(heat_actual).publish_state(senHeatActual);
             id(heating).publish_state(senHeating);
+            id(marax_mode) = senType[0];
             //id(opsType).publish_state(senType);
             //id(coffeeVersion).publish_state(senVersion);
             //opstype
