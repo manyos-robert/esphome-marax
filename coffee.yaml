@@ -168,6 +168,7 @@ text_sensor:
       - map:
         - C -> Coffee priority
         - S -> Steam priority
+        - V -> Steam priority  # "Vapore", so sendet es diese Firmware
         - X -> Offline
   - platform: template
     name: "Firmware Version"
@@ -176,7 +177,11 @@ text_sensor:
 uart:
   baud_rate: 9600
   tx_pin: ${pin_uart_tx}
-  rx_pin: ${pin_uart_rx}
+  rx_pin:
+    number: ${pin_uart_rx}
+    mode:
+      input: true
+      pullup: true  # bei ausgeschalteter Maschine floatet die Leitung sonst (Rauschen)
   id: UART2
   debug:
     direction: BOTH

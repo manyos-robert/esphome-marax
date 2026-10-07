@@ -13,7 +13,7 @@ The coffee machine sends the following data about 4 times a second:
 
 C123b,095,112,063,1095,1
 
-First Character: C or S for Coffee-/Steam-Priority. Followed by the current firmware version.
+First Character: C or V (Vapore) for Coffee-/Steam-Priority. Followed by the current firmware version.
 Second value: Actual steam temperature
 Third value: Target steam temperature
 Fourth value: Actual Heatexchanger temperature
