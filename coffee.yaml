@@ -83,7 +83,7 @@ sensor:
     unit_of_measurement: "min"
     accuracy_decimals: 0
     icon: mdi:timer-sand
-    update_interval: 30s
+    update_interval: 5s  # nach dem Einschalten schnell einen Wert statt "unbekannt"
     lambda: |-
       float steam = id(steam_actual).state;
       float target = id(steam_target).state;
