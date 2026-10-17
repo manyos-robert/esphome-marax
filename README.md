@@ -49,7 +49,18 @@ Pump runs shorter than `shot_min_s` (default 10 s) are treated as flushing or bo
 `Kaffee bereit` turns on once the heat exchanger exceeds `ready_on_c` (88 °C) and only turns off again
 when it falls below `ready_off_c` (85 °C), the machine is switched off or `Kein Wasser (vermutet)` is on.
 The hysteresis keeps it stable
-when the temperature moves during a shot. From a cold start it takes about 15 minutes.
+when the temperature moves during a shot.
+
+`Kaffee bereit in` estimates the remaining minutes (0 when ready, unknown when off, without water or in
+coffee mode):
+
+    rest = 0.06 · (target − steam) + 5.5 · ln((94 − HX) / (94 − 89))   [minutes]
+
+The first part is the boiler heating up, the second the heat exchanger approaching ~94 °C ever more slowly.
+The parameters were fitted to 107 cold starts with a steam target of 120 °C from the InfluxDB history
+(April 2025 – October 2026); cross-validated error ±1.6 min on average, ±0.7 min in the last 5 minutes.
+A cold start at 120 °C takes 18 minutes (median), less when the machine is still warm. With a different
+steam target the parameters need to be fitted again (126 °C: ~14 min, 136 °C: ~14 min to ready).
 
 ## Empty water tank
 

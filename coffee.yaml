@@ -15,6 +15,13 @@ substitutions:
   # Kaffee bereit: Wärmetauscher über ready_on_c, erst unter ready_off_c wieder nicht bereit
   ready_on_c: "88"
   ready_off_c: "85"
+  # Restzeit bis "Kaffee bereit", angepasst an 107 Kaltstarts mit Dampf-Soll 120 °C (InfluxDB, Okt. 2026,
+  # Fehler im Schnitt ±1,6 min): Kessel aufheizen + Wärmetauscher nähert sich eta_hx_eq_c an
+  #   rest = eta_boiler_min_per_c * (Soll - Dampf) + eta_tau_min * ln((eta_hx_eq_c - HX) / (eta_hx_eq_c - 89))
+  # Bei anderem Dampf-Soll neu anpassen.
+  eta_boiler_min_per_c: "0.06"
+  eta_tau_min: "5.5"
+  eta_hx_eq_c: "94"
 
 <<: !include ../.base.yaml
 
@@ -60,6 +67,8 @@ sensor:
             id(coffee_ready).publish_state(false);
           } else if (x > ${ready_on_c}) {
             id(coffee_ready).publish_state(true);
+          } else if (!id(coffee_ready).has_state()) {
+            id(coffee_ready).publish_state(false);  // Neustart im Hysterese-Band
           }
   # Läuft während des Bezugs sekündlich hoch, danach Endzeit (bzw. 0 bei kurzem Pumpenlauf)
   - platform: template
@@ -68,6 +77,27 @@ sensor:
     unit_of_measurement: "s"
     accuracy_decimals: 1
     icon: mdi:timer-outline
+  - platform: template
+    name: "Kaffee bereit in"
+    id: ready_eta
+    unit_of_measurement: "min"
+    accuracy_decimals: 0
+    icon: mdi:timer-sand
+    update_interval: 30s
+    lambda: |-
+      float steam = id(steam_actual).state;
+      float target = id(steam_target).state;
+      float hx = id(heat_actual).state;
+      // aus, kein Wasser oder Kaffee-Modus (Formel nur für Dampf-Modus angepasst): kein Wert
+      if (isnan(steam) || isnan(target) || isnan(hx) || target <= 0 ||
+          id(no_water).state || id(marax_mode) == 'C') return NAN;
+      if (id(coffee_ready).state) return 0;
+      const float eq = ${eta_hx_eq_c};
+      const float ready = ${ready_on_c} + 1;
+      float h = std::min(hx, eq - 1.0f);
+      float rest = ${eta_boiler_min_per_c} * std::max(target - steam, 0.0f) +
+                   ${eta_tau_min} * logf(std::max((eq - h) / (eq - ready), 1.0f));
+      return ceilf(rest);
   # Nur echte Shots (>= shot_min_s), für Historie/Statistik
   - platform: template
     name: "Letzter Shot"
@@ -92,7 +122,6 @@ binary_sensor:
     name: "Kaffee bereit"
     id: coffee_ready
     icon: mdi:coffee
-    publish_initial_state: true
   - platform: template
     name: "Kein Wasser (vermutet)"
     id: no_water
